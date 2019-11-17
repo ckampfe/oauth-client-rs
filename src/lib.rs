@@ -18,43 +18,22 @@
 //! let consumer = oauth_client::Token::new("key", "secret");
 //! let bytes = oauth_client::get(REQUEST_TOKEN, &consumer, None, None).unwrap();
 //! ```
-#![warn(bad_style)]
-#![warn(missing_docs)]
-#![warn(unused)]
-#![warn(unused_extern_crates)]
-#![warn(unused_import_braces)]
-#![warn(unused_qualifications)]
-#![warn(unused_results)]
-#![allow(unused_doc_comments)]
 
-extern crate base64;
-#[macro_use]
-extern crate failure;
-#[macro_use]
-extern crate failure_derive;
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate log;
-extern crate rand;
-extern crate reqwest;
-extern crate ring;
-extern crate time;
-extern crate url;
+use failure::*;
 
+use lazy_static::*;
+use log::*;
 use rand::{distributions::Alphanumeric, Rng};
-use reqwest::header::{Authorization, ContentType};
-use reqwest::mime;
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use reqwest::{Client, RequestBuilder, StatusCode};
-use ring::{digest, hmac};
+use ring::hmac;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::Read;
 use std::iter;
-use url::percent_encoding;
 
 /// Result type.
-pub type Result<T> = std::result::Result<T, failure::Error>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 /// An error happening due to a HTTP status error.
 #[derive(Debug, Fail, Clone, Copy)]
@@ -114,32 +93,19 @@ fn join_query<'a>(param: &ParamList<'a>) -> String {
     pairs.join("&")
 }
 
-#[derive(Copy, Clone)]
-struct StrictEncodeSet;
-
 // Encode all but the unreserved characters defined in
 // RFC 3986, section 2.3. "Unreserved Characters"
 // https://tools.ietf.org/html/rfc3986#page-12
-//
-// This is required by
-// OAuth Core 1.0, section 5.1. "Parameter Encoding"
-// https://oauth.net/core/1.0/#encoding_parameters
-impl percent_encoding::EncodeSet for StrictEncodeSet {
-    #[inline]
-    fn contains(&self, byte: u8) -> bool {
-        !((byte >= 0x61 && byte <= 0x7a) || // A-Z
-          (byte >= 0x41 && byte <= 0x5a) || // a-z
-          (byte >= 0x30 && byte <= 0x39) || // 0-9
-          (byte == 0x2d) || // -
-          (byte == 0x2e) || // .
-          (byte == 0x5f) || // _
-          (byte == 0x7e)) // ~
-    }
-}
+
+const URL: &percent_encoding::AsciiSet = &percent_encoding::NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'.')
+    .remove(b'_')
+    .remove(b'~');
 
 /// Percent encode string
 fn encode(s: &str) -> String {
-    percent_encoding::percent_encode(s.as_bytes(), StrictEncodeSet).collect()
+    percent_encoding::percent_encode(s.as_bytes(), URL).collect()
 }
 
 /// Create signature. See https://dev.twitter.com/oauth/overview/creating-signatures
@@ -158,7 +124,7 @@ fn signature(
     );
     debug!("Signature base string: {}", base);
     debug!("Authorization header: Authorization: {}", base);
-    let signing_key = hmac::SigningKey::new(&digest::SHA1, key.as_bytes());
+    let signing_key = hmac::Key::new(hmac::HMAC_SHA1_FOR_LEGACY_USE_ONLY, key.as_bytes());
     let signature = hmac::sign(&signing_key, base.as_bytes());
     base64::encode(signature.as_ref())
 }
@@ -182,7 +148,7 @@ fn body(param: &ParamList) -> String {
         .map(|(k, v)| format!("{}={}", k, encode(&v)))
         .collect::<Vec<_>>();
     pairs.sort();
-    format!("{}", pairs.join("&"))
+    pairs.join("&").to_string()
 }
 
 /// Create header and body
@@ -269,13 +235,13 @@ pub fn get(
     other_param: Option<&ParamList>,
 ) -> Result<Vec<u8>> {
     let (header, body) = get_header("GET", uri, consumer, token, other_param);
-    let req_uri = if body.len() > 0 {
+    let req_uri = if !body.is_empty() {
         format!("{}?{}", uri, body)
     } else {
-        format!("{}", uri)
+        uri.to_string()
     };
 
-    let rsp = send(CLIENT.get(&req_uri).header(Authorization(header)))?;
+    let rsp = send(CLIENT.get(&req_uri).header(AUTHORIZATION, header))?;
     Ok(rsp)
 }
 
@@ -303,16 +269,16 @@ pub fn post(
         CLIENT
             .post(uri)
             .body(body)
-            .header(Authorization(header))
-            .header(ContentType(mime::APPLICATION_WWW_FORM_URLENCODED)),
+            .header(AUTHORIZATION, header)
+            .header(CONTENT_TYPE, "application/x-www-form-urlencoded"),
     )?;
     Ok(rsp)
 }
 
 /// Send request to the server
-fn send(builder: &mut RequestBuilder) -> Result<Vec<u8>> {
+fn send(builder: RequestBuilder) -> Result<Vec<u8>> {
     let mut response = builder.send()?;
-    if response.status() != StatusCode::Ok {
+    if response.status() != StatusCode::OK {
         bail!(HttpStatusError(response.status().into()));
     }
     let mut buf = vec![];
@@ -345,18 +311,20 @@ mod tests {
             "oauth_signature_method=HMAC-SHA1&",
             "oauth_timestamp=1471445561&",
             "oauth_version=1.0",
-        ].iter()
-            .cloned()
-            .collect::<String>();
+        ]
+        .iter()
+        .cloned()
+        .collect::<String>();
         let encoded_query = [
             "oauth_consumer_key%3Dkey%26",
             "oauth_nonce%3Ds6HGl3GhmsDsmpgeLo6lGtKs7rQEzzsA%26",
             "oauth_signature_method%3DHMAC-SHA1%26",
             "oauth_timestamp%3D1471445561%26",
             "oauth_version%3D1.0",
-        ].iter()
-            .cloned()
-            .collect::<String>();
+        ]
+        .iter()
+        .cloned()
+        .collect::<String>();
 
         assert_eq!(encode(method), "GET");
         assert_eq!(encode(uri), encoded_uri);

@@ -5,15 +5,9 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-#![warn(
-    bad_style, unused, unused_extern_crates, unused_import_braces, unused_qualifications,
-    unused_results
-)]
-
-extern crate oauth_client as oauth;
-extern crate rand;
-
 use oauth::Token;
+use oauth_client as oauth;
+use rand;
 use rand::{distributions::Alphanumeric, Rng};
 use std::borrow::Cow;
 use std::collections::HashMap;
