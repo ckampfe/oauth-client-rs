@@ -31,6 +31,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::Read;
 use std::iter;
+use time::offset;
 
 /// Result type.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -160,7 +161,11 @@ fn get_header(
     other_param: Option<&ParamList>,
 ) -> (String, String) {
     let mut param = HashMap::new();
-    let timestamp = format!("{}", time::now_utc().to_timespec().sec);
+    let timestamp = format!(
+        "{}",
+        (time::OffsetDateTime::now().to_offset(offset!(UTC)) - time::OffsetDateTime::unix_epoch())
+            .whole_seconds()
+    );
     let mut rng = rand::thread_rng();
     let nonce = iter::repeat(())
         .map(|()| rng.sample(Alphanumeric))
