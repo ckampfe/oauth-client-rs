@@ -15,7 +15,6 @@ use reqwest::header::{HeaderMap, AUTHORIZATION};
 use reqwest::Client;
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::io::Read;
 use std::iter;
 use std::str;
 
@@ -36,19 +35,19 @@ fn split_query<'a>(query: &'a str) -> HashMap<Cow<'a, str>, Cow<'a, str>> {
     param
 }
 
-fn get_request_token(consumer: &Token) -> Token<'static> {
+async fn get_request_token(consumer: &Token<'_>) -> Token<'static> {
     let (header, _body) =
         oauth::authorization_header("GET", api::REQUEST_TOKEN, consumer, None, None);
     let handle = Client::new();
     let mut headers = HeaderMap::new();
     headers.insert(AUTHORIZATION, header.parse().unwrap());
-    let mut response = handle
+    let response = handle
         .get(api::REQUEST_TOKEN)
         .headers(headers)
         .send()
+        .await
         .unwrap();
-    let mut resp = String::new();
-    let _ = response.read_to_string(&mut resp).unwrap();
+    let resp = response.text().await.unwrap();
     println!("get_request_token response: {:?}", resp);
     let param = split_query(resp.as_ref());
     Token::new(
@@ -57,19 +56,19 @@ fn get_request_token(consumer: &Token) -> Token<'static> {
     )
 }
 
-fn get_access_token(consumer: &Token, request: &Token) -> Token<'static> {
+async fn get_access_token(consumer: &Token<'_>, request: &Token<'_>) -> Token<'static> {
     let (header, _body) =
         oauth::authorization_header("GET", api::ACCESS_TOKEN, consumer, Some(request), None);
     let handle = Client::new();
     let mut headers = HeaderMap::new();
     headers.insert(AUTHORIZATION, header.parse().unwrap());
-    let mut response = handle
+    let response = handle
         .get(api::ACCESS_TOKEN)
         .headers(headers)
         .send()
+        .await
         .unwrap();
-    let mut resp = String::new();
-    let _ = response.read_to_string(&mut resp).unwrap();
+    let resp = response.text().await.unwrap();
     println!("get_access_token response: {:?}", resp);
     let param = split_query(resp.as_ref());
     Token::new(
@@ -78,7 +77,7 @@ fn get_access_token(consumer: &Token, request: &Token) -> Token<'static> {
     )
 }
 
-fn echo(consumer: &Token, access: &Token) {
+async fn echo(consumer: &Token<'_>, access: &Token<'_>) {
     let mut rng = rand::thread_rng();
     let mut req_param = HashMap::new();
     let _ = req_param.insert("testFOO".into(), "testFoo".into());
@@ -100,31 +99,33 @@ fn echo(consumer: &Token, access: &Token) {
     let mut headers = HeaderMap::new();
     headers.insert(AUTHORIZATION, header.parse().unwrap());
 
-    let mut response = Client::new()
+    let response = Client::new()
         .post(api::ECHO)
         .headers(headers)
         .body(body.clone())
         .send()
+        .await
         .unwrap();
 
-    let mut resp = String::new();
-    let _ = response.read_to_string(&mut resp).unwrap();
+    let resp = response.text().await.unwrap();
     println!("echo response: {:?}", resp);
     let resp_body: &str = resp.as_ref();
     assert_eq!(body, resp_body);
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let consumer = Token::new("key", "secret");
     println!("consumer: {:?}", consumer);
 
-    let request = get_request_token(&consumer);
+    let request = get_request_token(&consumer).await;
     println!("request: {:?}", request);
 
-    let access = get_access_token(&consumer, &request);
+    let access = get_access_token(&consumer, &request).await;
     println!("access: {:?}", access);
 
-    echo(&consumer, &access);
+    echo(&consumer, &access).await;
 
     println!("OK");
+    Ok(())
 }

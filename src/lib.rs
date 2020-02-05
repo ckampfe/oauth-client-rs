@@ -14,9 +14,11 @@
 //! Send request for request token.
 //!
 //! ```
-//! const REQUEST_TOKEN: &'static str = "http://oauthbin.com/v1/request-token";
-//! let consumer = oauth_client::Token::new("key", "secret");
-//! let bytes = oauth_client::get(REQUEST_TOKEN, &consumer, None, None).unwrap();
+//! async {
+//!     const REQUEST_TOKEN: &'static str = "http://oauthbin.com/v1/request-token";
+//!     let consumer = oauth_client::Token::new("key", "secret");
+//!     let bytes = oauth_client::get(REQUEST_TOKEN, &consumer, None, None).await.unwrap();
+//! };
 //! ```
 
 use failure::*;
@@ -29,7 +31,6 @@ use reqwest::{Client, RequestBuilder, StatusCode};
 use ring::hmac;
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::io::Read;
 use std::iter;
 use time::offset;
 
@@ -149,7 +150,7 @@ fn body(param: &ParamList) -> String {
         .map(|(k, v)| format!("{}={}", k, encode(&v)))
         .collect::<Vec<_>>();
     pairs.sort();
-    pairs.join("&").to_string()
+    pairs.join("&")
 }
 
 /// Create header and body
@@ -228,16 +229,18 @@ pub fn authorization_header(
 /// # Examples
 ///
 /// ```
-/// let REQUEST_TOKEN: &'static str = "http://oauthbin.com/v1/request-token";
-/// let consumer = oauth_client::Token::new("key", "secret");
-/// let bytes = oauth_client::get(REQUEST_TOKEN, &consumer, None, None).unwrap();
-/// let resp = String::from_utf8(bytes).unwrap();
+/// async {
+///     let REQUEST_TOKEN: &'static str = "http://oauthbin.com/v1/request-token";
+///     let consumer = oauth_client::Token::new("key", "secret");
+///     let bytes = oauth_client::get(REQUEST_TOKEN, &consumer, None, None).await.unwrap();
+///     let resp = String::from_utf8(bytes).unwrap();
+/// };
 /// ```
-pub fn get(
+pub async fn get(
     uri: &str,
-    consumer: &Token,
-    token: Option<&Token>,
-    other_param: Option<&ParamList>,
+    consumer: &Token<'_>,
+    token: Option<&Token<'_>>,
+    other_param: Option<&ParamList<'_>>,
 ) -> Result<Vec<u8>> {
     let (header, body) = get_header("GET", uri, consumer, token, other_param);
     let req_uri = if !body.is_empty() {
@@ -246,7 +249,7 @@ pub fn get(
         uri.to_string()
     };
 
-    let rsp = send(CLIENT.get(&req_uri).header(AUTHORIZATION, header))?;
+    let rsp = send(CLIENT.get(&req_uri).header(AUTHORIZATION, header)).await?;
     Ok(rsp)
 }
 
@@ -257,16 +260,18 @@ pub fn get(
 ///
 /// ```
 /// # let request = oauth_client::Token::new("key", "secret");
-/// let ACCESS_TOKEN: &'static str = "http://oauthbin.com/v1/access-token";
-/// let consumer = oauth_client::Token::new("key", "secret");
-/// let bytes = oauth_client::post(ACCESS_TOKEN, &consumer, Some(&request), None).unwrap();
-/// let resp = String::from_utf8(bytes).unwrap();
+/// async {
+///     let ACCESS_TOKEN: &'static str = "http://oauthbin.com/v1/access-token";
+///     let consumer = oauth_client::Token::new("key", "secret");
+///     let bytes = oauth_client::post(ACCESS_TOKEN, &consumer, Some(&request), None).await.unwrap();
+///     let resp = String::from_utf8(bytes).unwrap();
+/// };
 /// ```
-pub fn post(
+pub async fn post(
     uri: &str,
-    consumer: &Token,
-    token: Option<&Token>,
-    other_param: Option<&ParamList>,
+    consumer: &Token<'_>,
+    token: Option<&Token<'_>>,
+    other_param: Option<&ParamList<'_>>,
 ) -> Result<Vec<u8>> {
     let (header, body) = get_header("POST", uri, consumer, token, other_param);
 
@@ -276,19 +281,18 @@ pub fn post(
             .body(body)
             .header(AUTHORIZATION, header)
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded"),
-    )?;
+    )
+    .await?;
     Ok(rsp)
 }
 
 /// Send request to the server
-fn send(builder: RequestBuilder) -> Result<Vec<u8>> {
-    let mut response = builder.send()?;
+async fn send(builder: RequestBuilder) -> Result<Vec<u8>> {
+    let response = builder.send().await?;
     if response.status() != StatusCode::OK {
         bail!(HttpStatusError(response.status().into()));
     }
-    let mut buf = vec![];
-    let _ = response.read_to_end(&mut buf)?;
-    Ok(buf)
+    Ok(response.bytes().await?.to_vec())
 }
 
 #[cfg(test)]

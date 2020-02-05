@@ -17,5 +17,8 @@ log = "0.4"
 percent-encoding = "2.1"
 rand = "0.7"
 ring = "0.16"
-reqwest = "0.9"
+reqwest = "0.10"
 time = "0.2"
+
+[dev-dependencies]
+tokio = { version = "0.2", features = ["full"]}
