@@ -164,8 +164,9 @@ fn get_header(
     let mut param = HashMap::new();
     let timestamp = format!(
         "{}",
-        (time::OffsetDateTime::now().to_offset(offset!(UTC)) - time::OffsetDateTime::unix_epoch())
-            .whole_seconds()
+        (time::OffsetDateTime::now_utc().to_offset(offset!(UTC))
+            - time::OffsetDateTime::unix_epoch())
+        .whole_seconds()
     );
     let mut rng = rand::thread_rng();
     let nonce = iter::repeat(())
