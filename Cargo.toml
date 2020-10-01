@@ -9,7 +9,7 @@ version = "0.6.0"
 edition = "2018"
 
 [dependencies]
-base64 = "0.12"
+base64 = "0.13"
 failure = "0.1"
 failure_derive = "0.1"
 lazy_static = "1.4"
