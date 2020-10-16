@@ -21,4 +21,4 @@ reqwest = "0.10"
 time = "0.2"
 
 [dev-dependencies]
-tokio = { version = "0.2", features = ["full"]}
+tokio = { version = "0.3", features = ["full"]}
