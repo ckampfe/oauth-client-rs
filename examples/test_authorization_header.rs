@@ -86,10 +86,12 @@ async fn echo(consumer: &Token<'_>, access: &Token<'_>) {
             iter::repeat(())
                 .map(|()| rng.sample(Alphanumeric))
                 .take(32)
+                .map(char::from)
                 .collect(),
             iter::repeat(())
                 .map(|()| rng.sample(Alphanumeric))
                 .take(32)
+                .map(char::from)
                 .collect(),
         );
     }
