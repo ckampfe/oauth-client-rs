@@ -86,7 +86,7 @@ where
     param.insert(key.into(), value.into())
 }
 
-fn join_query<'a>(param: &ParamList<'a>) -> String {
+fn join_query(param: &ParamList<'_>) -> String {
     let mut pairs = param
         .iter()
         .map(|(k, v)| format!("{}={}", encode(&k), encode(&v)))

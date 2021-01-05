@@ -15,9 +15,9 @@ failure_derive = "0.1"
 lazy_static = "1.4"
 log = "0.4"
 percent-encoding = "2.1"
-rand = "0.8.0"
+rand = "0.8"
 ring = "0.16"
-reqwest = "0.10"
+reqwest = "0.11"
 time = "0.2"
 
 [dev-dependencies]
